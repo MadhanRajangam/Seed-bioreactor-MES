@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>MES eBMR Recipe Designer</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+background: #f3f6fa;
+color: #203247;
+padding: 24px;
+}
+h1 { color: #163b65; }
+.panel {
+background: white;
+padding: 20px;
+margin-bottom: 20px;
+border-radius: 10px;
+}
+input, select, textarea, button {
+padding: 10px;
+margin: 6px;
+}
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+}
+th, td {
+border: 1px solid #ddd;
+padding: 12px;
+text-align: left;
+}
+th {
+background: #163b65;
+color: white;
+}
+.table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>eBMR Recipe Designer</h1>
+<p>Seed Bioreactor 50 L - Demo Recipe</p>
+
+<div class="panel">
+<h2>Recipe Information</h2>
+<p>Recipe ID: RCP-SEED-001</p>
+<p>Equipment: SUB-101</p>
+<p>Version: 1.0</p>
+<p>Status: Draft - Training Only</p>
+</div>
+
+<div class="panel">
+<h2>Add Recipe Step</h2>
+
+<form id="recipeForm">
+<input id="stepNumber"
+type="number"
+min="1"
+placeholder="Step Number"
+required>
+
+<input id="stepName"
+placeholder="Step Name"
+required>
+
+<textarea id="instruction"
+placeholder="Operator Instruction"
+required></textarea>
+
+<select id="parameterType">
+<option value="none">No Numeric Parameter</option>
+<option value="temperature">Temperature (°C)</option>
+<option value="ph">pH</option>
+<option value="agitation">Agitation (rpm)</option>
+<option value="volume">Volume (L)</option>
+</select>
+
+<input id="minimum"
+type="number"
+step="any"
+placeholder="Minimum Limit">
+
+<input id="maximum"
+type="number"
+step="any"
+placeholder="Maximum Limit">
+
+<button type="submit">Add Recipe Step</button>
+</form>
+
+<p id="message" role="status"></p>
+</div>
+
+<div class="panel">
+<h2>Master Recipe Steps</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Operation</th>
+<th>Instruction</th>
+<th>Parameter</th>
+<th>Min</th>
+<th>Max</th>
+</tr>
+</thead>
+<tbody id="recipeTable"></tbody>
+</table>
+</div>
+</div>
+
+<a href="index.html">Back to Dashboard</a>
+
+<script>
+const storageKey = "mes_recipe_demo";
+
+const defaults = [
+{
+number: 1,
+name: "Equipment Verification",
+instruction: "Verify equipment status.",
+parameter: "none",
+min: null,
+max: null
+},
+{
+number: 2,
+name: "Bag Installation",
+instruction: "Record installation completion.",
+parameter: "none",
+min: null,
+max: null
+},
+{
+number: 3,
+name: "Bag Integrity Verification",
+instruction: "Record integrity test outcome.",
+parameter: "none",
+min: null,
+max: null
+},
+{
+number: 4,
+name: "Material Verification",
+instruction: "Verify material and lot.",
+parameter: "none",
+min: null,
+max: null
+},
+{
+number: 5,
+name: "Media Transfer",
+instruction: "Record transferred volume.",
+parameter: "volume",
+min: 15,
+max: 30
+},
+{
+number: 6,
+name: "Temperature Verification",
+instruction: "Record temperature reading.",
+parameter: "temperature",
+min: 36,
+max: 38
+},
+{
+number: 7,
+name: "Inoculation Recording",
+instruction: "Record completion of inoculation.",
+parameter: "none",
+min: null,
+max: null
+},
+{
+number: 8,
+name: "Batch Completion",
+instruction: "Record batch completion.",
+parameter: "none",
+min: null,
+max: null
+}
+];
+
+let steps;
+try {
+const saved = JSON.parse(
+localStorage.getItem(storageKey)
+);
+steps = Array.isArray(saved) ? saved : defaults;
+} catch {
+steps = defaults;
+}
+
+function renderSteps() {
+const table = document.getElementById(
+"recipeTable"
+);
+table.replaceChildren();
+
+steps.sort((a, b) => a.number - b.number);
+
+steps.forEach(step => {
+const row = document.createElement("tr");
+
+[
+step.number,
+step.name,
+step.instruction,
+step.parameter,
+step.min ?? "-",
+step.max ?? "-"
+].forEach(value => {
+const cell = document.createElement("td");
+cell.textContent = value;
+row.appendChild(cell);
+});
+
+table.appendChild(row);
+});
+}
+
+document.getElementById("recipeForm")
+.addEventListener("submit", function(event) {
+event.preventDefault();
+
+const number = Number(
+document.getElementById("stepNumber").value
+);
+const name = document.getElementById(
+"stepName"
+).value.trim();
+const instruction = document.getElementById(
+"instruction"
+).value.trim();
+const parameter = document.getElementById(
+"parameterType"
+).value;
+
+const minInput = document.getElementById(
+"minimum"
+).value;
+const maxInput = document.getElementById(
+"maximum"
+).value;
+
+const message = document.getElementById(
+"message"
+);
+
+if (steps.some(s => s.number === number)) {
+message.textContent =
+"Step number already exists.";
+return;
+}
+
+let min = null;
+let max = null;
+
+if (parameter !== "none") {
+if (minInput === "" || maxInput === "") {
+message.textContent =
+"Enter both parameter limits.";
+return;
+}
+
+min = Number(minInput);
+max = Number(maxInput);
+
+if (!Number.isFinite(min) ||
+!Number.isFinite(max) ||
+min > max) {
+message.textContent =
+"Invalid parameter limits.";
+return;
+}
+}
+
+const newStep = {
+number, name, instruction,
+parameter, min, max
+};
+
+steps.push(newStep);
+
+try {
+localStorage.setItem(
+storageKey,
+JSON.stringify(steps)
+);
+renderSteps();
+this.reset();
+message.textContent =
+"Recipe step added successfully.";
+} catch {
+steps.pop();
+message.textContent =
+"Unable to save recipe step.";
+}
+});
+
+renderSteps();
+</script>
+</body>
+</html>
