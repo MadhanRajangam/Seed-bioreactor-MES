@@ -10,15 +10,33 @@ body {
 font-family: Arial, sans-serif;
 background: #f3f6fa;
 padding: 24px;
+color: #203247;
 }
 h1 { color: #163b65; }
+.panel {
+background: white;
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+}
+input, select, button {
+padding: 10px;
+margin: 6px 4px 6px 0;
+}
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+}
 table {
 width: 100%;
 border-collapse: collapse;
 background: white;
 }
 th, td {
-padding: 14px;
+padding: 12px;
 border: 1px solid #ddd;
 text-align: left;
 }
@@ -30,37 +48,150 @@ color: white;
 </head>
 <body>
 
-<h1>MES Equipment Master Data</h1>
-<p>Seed Bioreactor Manufacturing</p>
+<h1>Equipment Master Data</h1>
+<p>Seed Bioreactor MES - Demo Configuration</p>
 
+<div class="panel">
+<h2>Register Equipment</h2>
+
+<form id="equipmentForm">
+<input id="equipmentId"
+placeholder="Equipment ID"
+required>
+
+<input id="equipmentName"
+placeholder="Equipment Name"
+required>
+
+<input id="equipmentRoom"
+placeholder="Room ID"
+required>
+
+<select id="equipmentStatus">
+<option>Available</option>
+<option>In Use</option>
+<option>Maintenance</option>
+<option>Out of Service</option>
+</select>
+
+<button type="submit">Add Equipment</button>
+</form>
+</div>
+
+<div class="panel">
+<h2>Equipment Register</h2>
 <table>
 <thead>
 <tr>
 <th>Equipment ID</th>
-<th>Equipment Name</th>
+<th>Name</th>
+<th>Room</th>
 <th>Status</th>
 </tr>
 </thead>
-<tbody>
-<tr>
-<td>SUB-101</td>
-<td>Seed Bioreactor 50 L</td>
-<td>Available</td>
-</tr>
-<tr>
-<td>PUMP-101</td>
-<td>Peristaltic Pump</td>
-<td>Available</td>
-</tr>
-<tr>
-<td>BAL-101</td>
-<td>Weighing Balance</td>
-<td>Available</td>
-</tr>
-</tbody>
+<tbody id="equipmentTable"></tbody>
 </table>
+</div>
 
-<p><a href="index.html">Back to Dashboard</a></p>
+<a href="index.html">Back to Dashboard</a>
 
+<script>
+const storageKey = "mes_equipment_demo";
+
+const defaults = [
+{
+id: "SUB-101",
+name: "Seed Bioreactor 50 L",
+room: "USP-101",
+status: "Available"
+},
+{
+id: "PUMP-101",
+name: "Peristaltic Pump",
+room: "USP-101",
+status: "Available"
+},
+{
+id: "BAL-101",
+name: "Weighing Balance",
+room: "USP-102",
+status: "Available"
+}
+];
+
+let equipment = JSON.parse(
+localStorage.getItem(storageKey) || "null"
+) || defaults;
+
+function saveEquipment() {
+localStorage.setItem(
+storageKey,
+JSON.stringify(equipment)
+);
+}
+
+function renderEquipment() {
+const table = document.getElementById(
+"equipmentTable"
+);
+
+table.replaceChildren();
+
+equipment.forEach(item => {
+const row = document.createElement("tr");
+
+[
+item.id,
+item.name,
+item.room,
+item.status
+].forEach(value => {
+const cell = document.createElement("td");
+cell.textContent = value;
+row.appendChild(cell);
+});
+
+table.appendChild(row);
+});
+}
+
+document.getElementById("equipmentForm")
+.addEventListener("submit", function(event) {
+event.preventDefault();
+
+const id = document.getElementById(
+"equipmentId"
+).value.trim();
+
+const name = document.getElementById(
+"equipmentName"
+).value.trim();
+
+const room = document.getElementById(
+"equipmentRoom"
+).value.trim();
+
+const status = document.getElementById(
+"equipmentStatus"
+).value;
+
+if (equipment.some(item =>
+item.id.toLowerCase() === id.toLowerCase()
+)) {
+alert("Equipment ID already exists.");
+return;
+}
+
+equipment.push({ id, name, room, status });
+
+saveEquipment();
+renderEquipment();
+this.reset();
+
+alert("Equipment added successfully.");
+});
+
+renderEquipment();
+</script>
 </body>
 </html>
