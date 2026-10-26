@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>Seed Bioreactor MES</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+margin: 0;
+background: #f3f6fa;
+}
+header {
+background: #163b65;
+color: white;
+padding: 24px;
+}
+main { padding: 24px; }
+.card {
+background: white;
+padding: 20px;
+margin-bottom: 15px;
+border-radius: 10px;
+box-shadow: 0 2px 6px #ddd;
+}
+button {
+background: #1767a8;
+color: white;
+padding: 12px 20px;
+border: none;
+border-radius: 6px;
+cursor: pointer;
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Seed Bioreactor MES</h1>
+<p>Electronic Batch Manufacturing Record</p>
+</header>
+
+<main>
+<div class="card">
+<h2>MES Dashboard</h2>
+<p>Equipment: SUB-101</p>
+<p>Batch: SEED-2026-001</p>
+<p>Status: Ready</p>
+</div>
+
+<div class="card">
+<h2>Master Data</h2>
+<p>Materials | Equipment | Users</p>
+</div>
+
+<div class="card">
+<h2>eBMR Designer</h2>
+<p>Configure manufacturing recipes.</p>
+</div>
+
+<div class="card">
+<h2>Batch Execution</h2>
+<button onclick="startBatch()">
+Start Batch
+</button>
+<p id="batchStatus">Not Started</p>
+</div>
+</main>
+
+<script>
+function startBatch() {
+document.getElementById("batchStatus")
+.textContent = "Batch In Progress";
+}
+</script>
+</body>
+</html>
