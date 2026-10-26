@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>MES Material Master Data</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+background: #f3f6fa;
+color: #203247;
+padding: 24px;
+}
+h1 { color: #163b65; }
+.panel {
+background: white;
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+}
+input, select, button {
+padding: 10px;
+margin: 6px 4px 6px 0;
+}
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+background: white;
+}
+th, td {
+padding: 12px;
+border: 1px solid #ddd;
+text-align: left;
+}
+th {
+background: #163b65;
+color: white;
+}
+.table-wrap { overflow-x: auto; }
+#message { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Material Master Data</h1>
+<p>Seed Bioreactor MES - Demo Configuration</p>
+
+<div class="panel">
+<h2>Register Material Lot</h2>
+
+<form id="materialForm">
+<input id="materialId"
+placeholder="Material ID" required>
+
+<input id="materialName"
+placeholder="Material Name" required>
+
+<input id="lotNumber"
+placeholder="Lot Number" required>
+
+<label for="expiryDate">Expiry Date</label>
+<input type="date" id="expiryDate" required>
+
+<select id="materialStatus">
+<option>Released</option>
+<option>Quarantine</option>
+<option>Rejected</option>
+</select>
+
+<button type="submit">Add Material</button>
+</form>
+
+<p id="message" role="status"></p>
+</div>
+
+<div class="panel">
+<h2>Material Register</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Material ID</th>
+<th>Material Name</th>
+<th>Lot Number</th>
+<th>Expiry Date</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody id="materialTable"></tbody>
+</table>
+</div>
+</div>
+
+<a href="index.html">Back to Dashboard</a>
+
+<script>
+const storageKey = "mes_materials_demo";
+
+const defaults = [
+{
+id: "MAT-001",
+name: "Cell Culture Media",
+lot: "MED-2026-001",
+expiry: "2027-06-30",
+status: "Released"
+},
+{
+id: "MAT-002",
+name: "Single-Use Bioreactor Bag",
+lot: "BAG-2026-001",
+expiry: "2027-09-30",
+status: "Released"
+},
+{
+id: "MAT-003",
+name: "Sterile Tubing Assembly",
+lot: "TUB-2026-001",
+expiry: "2027-12-31",
+status: "Released"
+},
+{
+id: "MAT-004",
+name: "Sterile Filter 0.2 µm",
+lot: "FIL-2026-001",
+expiry: "2027-08-31",
+status: "Released"
+}
+];
+
+let materials;
+try {
+const saved = JSON.parse(
+localStorage.getItem(storageKey)
+);
+materials = Array.isArray(saved) ? saved : defaults;
+} catch {
+materials = defaults;
+}
+
+function renderMaterials() {
+const table = document.getElementById(
+"materialTable"
+);
+table.replaceChildren();
+
+materials.forEach(item => {
+const row = document.createElement("tr");
+
+[
+item.id,
+item.name,
+item.lot,
+item.expiry,
+item.status
+].forEach(value => {
+const cell = document.createElement("td");
+cell.textContent = value;
+row.appendChild(cell);
+});
+
+table.appendChild(row);
+});
+}
+
+document.getElementById("materialForm")
+.addEventListener("submit", function(event) {
+event.preventDefault();
+
+const id = document.getElementById(
+"materialId"
+).value.trim();
+
+const name = document.getElementById(
+"materialName"
+).value.trim();
+
+const lot = document.getElementById(
+"lotNumber"
+).value.trim();
+
+const expiry = document.getElementById(
+"expiryDate"
+).value;
+
+const status = document.getElementById(
+"materialStatus"
+).value;
+
+const message = document.getElementById(
+"message"
+);
+
+if (materials.some(item =>
+item.id.toLowerCase() === id.toLowerCase()
+&& item.lot.toLowerCase() === lot.toLowerCase()
+)) {
+message.textContent =
+"This material and lot combination already exists.";
+return;
+}
+
+materials.push({
+id, name, lot, expiry, status
+});
+
+try {
+localStorage.setItem(
+storageKey,
+JSON.stringify(materials)
+);
+renderMaterials();
+this.reset();
+message.textContent =
+"Material lot added successfully.";
+} catch {
+materials.pop();
+message.textContent =
+"Unable to save material in browser storage.";
+}
+});
+
+renderMaterials();
+</script>
+</body>
+</html>
