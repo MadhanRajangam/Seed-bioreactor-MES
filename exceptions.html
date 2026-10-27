@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>MES Exception Management</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+background: #f3f6fa;
+color: #203247;
+padding: 24px;
+}
+h1 { color: #163b65; }
+.panel {
+background: white;
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+}
+label {
+display: block;
+margin-top: 12px;
+font-weight: bold;
+}
+input, textarea, select, button {
+padding: 10px;
+margin-top: 6px;
+box-sizing: border-box;
+}
+textarea, select, input {
+max-width: 100%;
+}
+textarea {
+width: 100%;
+min-height: 90px;
+}
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+margin-top: 14px;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+}
+th, td {
+border: 1px solid #ddd;
+padding: 12px;
+text-align: left;
+}
+th {
+background: #163b65;
+color: white;
+}
+.table-wrap { overflow-x: auto; }
+.exception {
+border: 1px solid #ddd;
+border-left: 5px solid #c45b28;
+border-radius: 6px;
+padding: 16px;
+margin-top: 16px;
+}
+.warning { color: #a33c22; }
+.success { color: #187447; }
+#message { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Exception Management & QA Review</h1>
+<p>Seed Bioreactor MES - Training Simulation</p>
+
+<div class="panel">
+<h2>Batch Information</h2>
+<p>Batch ID:
+<strong id="batchId">-</strong>
+</p>
+<p>Execution Status:
+<strong id="batchStatus">-</strong>
+</p>
+<p>Total Exceptions:
+<strong id="exceptionCount">0</strong>
+</p>
+</div>
+
+<div class="panel">
+<h2>Exception Register</h2>
+<div id="exceptionContainer"></div>
+<p id="message" role="status"></p>
+</div>
+
+<a href="batch.html">Back to Batch Execution</a>
+<br><br>
+<a href="index.html">Back to Dashboard</a>
+
+<script>
+const batchKey = "mes_batch_execution_demo";
+const reviewKey = "mes_exception_reviews_demo";
+
+let batch = null;
+let reviews = {};
+
+try {
+batch = JSON.parse(localStorage.getItem(batchKey));
+} catch {
+batch = null;
+}
+
+try {
+const saved = JSON.parse(
+localStorage.getItem(reviewKey)
+);
+reviews = saved && typeof saved === "object"
+&& !Array.isArray(saved) ? saved : {};
+} catch {
+reviews = {};
+}
+
+function saveReviews() {
+localStorage.setItem(
+reviewKey,
+JSON.stringify(reviews)
+);
+}
+
+function showMessage(text) {
+document.getElementById("message")
+.textContent = text;
+}
+
+function render() {
+const container = document.getElementById(
+"exceptionContainer"
+);
+container.replaceChildren();
+
+if (!batch || !Array.isArray(batch.steps)) {
+container.textContent =
+"No batch execution found. Start a batch first.";
+return;
+}
+
+document.getElementById("batchId")
+.textContent = batch.id;
+
+document.getElementById("batchStatus")
+.textContent = batch.status;
+
+const exceptions = batch.steps.filter(
+step => step.result === "Exception"
+);
+
+document.getElementById("exceptionCount")
+.textContent = exceptions.length;
+
+if (!exceptions.length) {
+container.textContent =
+"No exceptions recorded for this batch.";
+return;
+}
+
+exceptions.forEach(step => {
+const key = batch.id + "-STEP-" + step.number;
+
+const review = reviews[key] || {
+investigation: "",
+status: "Open",
+disposition: "Pending Review",
+reviewer: ""
+};
+
+const card = document.createElement("div");
+card.className = "exception";
+
+const heading = document.createElement("h3");
+heading.textContent =
+"Step " + step.number + ": " + step.name;
+card.appendChild(heading);
+
+const actual = document.createElement("p");
+actual.textContent =
+"Recorded Actual Value: " + step.actual;
+card.appendChild(actual);
+
+const limits = document.createElement("p");
+limits.textContent = step.parameter === "none"
+? "Expected Response: Pass or Done"
+: "Configured Range: " +
+step.min + " - " + step.max;
+card.appendChild(limits);
+
+const result = document.createElement("p");
+result.className = "warning";
+result.textContent = "Execution Result: Exception";
+card.appendChild(result);
+
+function makeLabel(text, control) {
+const label = document.createElement("label");
+label.textContent = text;
+label.appendChild(document.createElement("br"));
+label.appendChild(control);
+card.appendChild(label);
+}
+
+const investigation = document.createElement(
+"textarea"
+);
+investigation.value = review.investigation;
+investigation.placeholder =
+"Describe the investigation and findings";
+makeLabel("Investigation Comments", investigation);
+
+const status = document.createElement("select");
+[
+"Open",
+"Under Investigation",
+"Reviewed"
+].forEach(value => {
+const option = document.createElement("option");
+option.value = value;
+option.textContent = value;
+status.appendChild(option);
+});
+status.value = review.status;
+makeLabel("Investigation Status", status);
+
+const disposition = document.createElement(
+"select"
+);
+[
+"Pending Review",
+"Accepted for Training",
+"Rejected for Training"
+].forEach(value => {
+const option = document.createElement("option");
+option.value = value;
+option.textContent = value;
+disposition.appendChild(option);
+});
+disposition.value = review.disposition;
+makeLabel("Simulated QA Disposition", disposition);
+
+const reviewer = document.createElement("input");
+reviewer.type = "text";
+reviewer.value = review.reviewer;
+reviewer.placeholder = "Enter reviewer name";
+makeLabel("Reviewer Name (Demo)", reviewer);
+
+const button = document.createElement("button");
+button.textContent = "Save Review";
+
+button.addEventListener("click", () => {
+const comment = investigation.value.trim();
+const name = reviewer.value.trim();
+
+if (
+(status.value === "Reviewed" ||
+disposition.value !== "Pending Review") &&
+(!comment || !name)
+) {
+showMessage(
+"Investigation comments and reviewer name " +
+"are required to complete a review."
+);
+return;
+}
+
+if (
+disposition.value !== "Pending Review" &&
+status.value !== "Reviewed"
+) {
+showMessage(
+"Set investigation status to Reviewed " +
+"before selecting a QA disposition."
+);
+return;
+}
+
+reviews[key] = {
+investigation: comment,
+status: status.value,
+disposition: disposition.value,
+reviewer: name,
+reviewedAt: new Date().toISOString()
+};
+
+saveReviews();
+showMessage(
+"Review saved for Step " + step.number
+);
+});
+
+card.appendChild(button);
+container.appendChild(card);
+});
+}
+
+render();
+</script>
+</body>
+</html>
