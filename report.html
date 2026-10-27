@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>MES Electronic Batch Record</title>
+
+<style>
+body {
+font-family: Arial, sans-serif;
+background: #f3f6fa;
+color: #203247;
+padding: 24px;
+}
+
+h1, h2 {
+color: #163b65;
+}
+
+.panel {
+background: white;
+padding: 20px;
+margin-bottom: 20px;
+border-radius: 10px;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+}
+
+th, td {
+border: 1px solid #ddd;
+padding: 10px;
+text-align: left;
+}
+
+th {
+background: #163b65;
+color: white;
+}
+
+.table-wrap {
+overflow-x: auto;
+}
+
+.pass {
+color: green;
+font-weight: bold;
+}
+
+.exception {
+color: #b33a25;
+font-weight: bold;
+}
+
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+padding: 12px 18px;
+cursor: pointer;
+}
+
+a {
+margin-right: 15px;
+}
+
+.note {
+color: #666;
+font-size: 13px;
+}
+
+@media print {
+body {
+background: white;
+padding: 0;
+}
+
+.panel {
+border: 1px solid #ddd;
+break-inside: avoid;
+}
+
+.no-print {
+display: none;
+}
+
+th {
+background: #eee !important;
+color: black !important;
+}
+}
+</style>
+</head>
+
+<body>
+
+<h1>Electronic Batch Record (eBR)</h1>
+<p>Seed Bioreactor MES - Training Simulation</p>
+
+<div class="panel">
+<h2>Batch Information</h2>
+<p>Batch ID: <strong id="batchId">-</strong></p>
+<p>Equipment: <strong id="equipment">SUB-101</strong></p>
+<p>Recipe: <strong id="recipe">RCP-SEED-001</strong></p>
+<p>Execution Status:
+<strong id="status">-</strong>
+</p>
+</div>
+
+<div class="panel">
+<h2>Electronic Batch Execution Record</h2>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Operation</th>
+<th>Parameter</th>
+<th>Configured Limits</th>
+<th>Actual Value</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody id="executionTable"></tbody>
+</table>
+</div>
+</div>
+
+<div class="panel">
+<h2>Exception Summary</h2>
+<div id="exceptionSummary"></div>
+</div>
+
+<div class="panel">
+<h2>Exception Investigation & QA Review</h2>
+<div id="qaReview"></div>
+</div>
+
+<div class="panel">
+<h2>Report Information</h2>
+<p>Report Type: Electronic Batch Record</p>
+<p>Generated At:
+<strong id="generatedAt"></strong>
+</p>
+<p class="note">
+Educational MES simulation only.
+Not a validated GMP batch record or
+an authorized QA release document.
+</p>
+</div>
+
+<div class="no-print">
+<button onclick="window.print()">
+Print / Save as PDF
+</button>
+
+<p>
+<a href="batch.html">Batch Execution</a>
+<a href="exceptions.html">QA Review</a>
+<a href="index.html">Dashboard</a>
+</p>
+</div>
+
+<script>
+const batchKey = "mes_batch_execution_demo";
+const reviewKey = "mes_exception_reviews_demo";
+
+let batch = null;
+let reviews = {};
+
+try {
+batch = JSON.parse(
+localStorage.getItem(batchKey)
+);
+} catch {
+batch = null;
+}
+
+try {
+const saved = JSON.parse(
+localStorage.getItem(reviewKey)
+);
+
+reviews = saved &&
+typeof saved === "object" &&
+!Array.isArray(saved)
+? saved
+: {};
+} catch {
+reviews = {};
+}
+
+function addCell(row, value, className = "") {
+const cell = document.createElement("td");
+cell.textContent = value ?? "-";
+
+if (className) {
+cell.className = className;
+}
+
+row.appendChild(cell);
+}
+
+function addParagraph(container, text) {
+const p = document.createElement("p");
+p.textContent = text;
+container.appendChild(p);
+}
+
+function renderReport() {
+document.getElementById("generatedAt")
+.textContent = new Date().toLocaleString();
+
+const table = document.getElementById(
+"executionTable"
+);
+
+const summary = document.getElementById(
+"exceptionSummary"
+);
+
+const qa = document.getElementById("qaReview");
+
+if (
+!batch ||
+!Array.isArray(batch.steps)
+) {
+addParagraph(
+summary,
+"No saved batch found. Execute a batch first."
+);
+return;
+}
+
+document.getElementById("batchId")
+.textContent = batch.id;
+
+document.getElementById("status")
+.textContent = batch.status;
+
+batch.steps.forEach(step => {
+const row = document.createElement("tr");
+
+const limits = step.parameter === "none"
+? "Pass / Done"
+: String(step.min) + " - " +
+String(step.max);
+
+addCell(row, step.number);
+addCell(row, step.name);
+addCell(row, step.parameter);
+addCell(row, limits);
+addCell(row, step.actual);
+addCell(
+row,
+step.result,
+step.result === "Exception"
+? "exception"
+: step.result === "Pass"
+? "pass"
+: ""
+);
+
+table.appendChild(row);
+});
+
+const exceptions = batch.steps.filter(
+step => step.result === "Exception"
+);
+
+if (!exceptions.length) {
+addParagraph(
+summary,
+"No execution exceptions recorded."
+);
+
+addParagraph(
+qa,
+"No exception investigations required."
+);
+return;
+}
+
+addParagraph(
+summary,
+"Total Exceptions: " + exceptions.length
+);
+
+exceptions.forEach(step => {
+const key =
+batch.id + "-STEP-" + step.number;
+
+const review = reviews[key] || {};
+
+const card = document.createElement("div");
+card.style.borderBottom = "1px solid #ddd";
+card.style.padding = "12px 0";
+
+const heading = document.createElement("h3");
+heading.textContent =
+"Step " + step.number + ": " + step.name;
+card.appendChild(heading);
+
+addParagraph(
+card,
+"Recorded Value: " + step.actual
+);
+
+addParagraph(
+card,
+"Configured Range: " +
+(step.parameter === "none"
+? "Pass / Done"
+: step.min + " - " + step.max)
+);
+
+addParagraph(
+card,
+"Investigation Status: " +
+(review.status || "Open")
+);
+
+addParagraph(
+card,
+"Investigation Comments: " +
+(review.investigation || "Not recorded")
+);
+
+addParagraph(
+card,
+"QA Disposition (Simulation): " +
+(review.disposition || "Pending Review")
+);
+
+addParagraph(
+card,
+"Reviewer: " +
+(review.reviewer || "Not recorded")
+);
+
+addParagraph(
+card,
+"Review Saved At: " +
+(review.reviewedAt
+? new Date(
+review.reviewedAt
+).toLocaleString()
+: "Not recorded")
+);
+
+qa.appendChild(card);
+
+addParagraph(
+summary,
+"Step " + step.number +
+" - " + step.name +
+" - Actual: " + step.actual
+);
+});
+}
+
+renderReport();
+</script>
+
+</body>
+</html>
