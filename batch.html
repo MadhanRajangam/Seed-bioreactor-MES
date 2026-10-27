@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+<title>MES Batch Execution</title>
+<style>
+body {
+font-family: Arial, sans-serif;
+background: #f3f6fa;
+color: #203247;
+padding: 24px;
+}
+h1 { color: #163b65; }
+.panel {
+background: white;
+padding: 20px;
+border-radius: 10px;
+margin-bottom: 20px;
+}
+input, button {
+padding: 10px;
+margin: 6px;
+}
+button {
+background: #1767a8;
+color: white;
+border: none;
+border-radius: 5px;
+cursor: pointer;
+}
+button:disabled {
+background: #999;
+}
+table {
+width: 100%;
+border-collapse: collapse;
+}
+th, td {
+border: 1px solid #ddd;
+padding: 12px;
+text-align: left;
+}
+th {
+background: #163b65;
+color: white;
+}
+.table-wrap { overflow-x: auto; }
+#message { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Electronic Batch Execution</h1>
+<p>Seed Bioreactor MES - Training Simulation</p>
+
+<div class="panel">
+<h2>Batch Information</h2>
+<label>Batch ID
+<input id="batchId" value="SEED-2026-002">
+</label>
+<p>Equipment: SUB-101</p>
+<p>Recipe: RCP-SEED-001</p>
+<button id="startButton">Start Batch</button>
+<p>Status: <strong id="batchStatus">Ready</strong></p>
+</div>
+
+<div class="panel">
+<h2>Recipe Execution</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Operation</th>
+<th>Instruction</th>
+<th>Parameter</th>
+<th>Actual Value</th>
+<th>Result</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="executionTable"></tbody>
+</table>
+</div>
+<p id="message" role="status"></p>
+</div>
+
+<div class="panel">
+<h2>Exception Register</h2>
+<ul id="exceptionList"></ul>
+</div>
+
+<a href="index.html">Back to Dashboard</a>
+
+<script>
+const recipeKey = "mes_recipe_demo";
+const batchKey = "mes_batch_execution_demo";
+
+let recipe = [];
+let batch = null;
+
+try {
+const savedRecipe = JSON.parse(
+localStorage.getItem(recipeKey)
+);
+recipe = Array.isArray(savedRecipe)
+? savedRecipe
+: [];
+} catch {
+recipe = [];
+}
+
+try {
+batch = JSON.parse(localStorage.getItem(batchKey));
+} catch {
+batch = null;
+}
+
+function saveBatch() {
+localStorage.setItem(batchKey, JSON.stringify(batch));
+}
+
+function showMessage(text) {
+document.getElementById("message")
+.textContent = text;
+}
+
+function render() {
+const table = document.getElementById(
+"executionTable"
+);
+const list = document.getElementById(
+"exceptionList"
+);
+
+table.replaceChildren();
+list.replaceChildren();
+
+document.getElementById("batchStatus")
+.textContent = batch ? batch.status : "Ready";
+
+document.getElementById("startButton").disabled =
+!!batch;
+
+document.getElementById("batchId").disabled =
+!!batch;
+
+if (!batch) return;
+
+batch.steps.forEach((step, index) => {
+const row = document.createElement("tr");
+
+[
+step.number,
+step.name,
+step.instruction,
+step.parameter
+].forEach(value => {
+const cell = document.createElement("td");
+cell.textContent = value;
+row.appendChild(cell);
+});
+
+const actualCell = document.createElement("td");
+const input = document.createElement("input");
+
+input.type = step.parameter === "none"
+? "text"
+: "number";
+
+if (input.type === "number") {
+input.step = "any";
+}
+
+input.placeholder = step.parameter === "none"
+? "Enter Pass or Done"
+: "Enter value";
+
+input.value = step.actual ?? "";
+input.disabled = step.result !== "Pending"
+|| batch.status !== "In Progress";
+
+actualCell.appendChild(input);
+row.appendChild(actualCell);
+
+const resultCell = document.createElement("td");
+resultCell.textContent = step.result;
+row.appendChild(resultCell);
+
+const actionCell = document.createElement("td");
+const button = document.createElement("button");
+button.textContent = "Record";
+
+button.disabled = step.result !== "Pending"
+|| batch.status !== "In Progress";
+
+button.addEventListener("click", () => {
+recordStep(index, input.value);
+});
+
+actionCell.appendChild(button);
+row.appendChild(actionCell);
+table.appendChild(row);
+});
+
+batch.exceptions.forEach(item => {
+const li = document.createElement("li");
+li.textContent = item;
+list.appendChild(li);
+});
+}
+
+function recordStep(index, value) {
+const step = batch.steps[index];
+
+if (step.result !== "Pending") return;
+
+if (value.trim() === "") {
+showMessage("Enter an actual value first.");
+return;
+}
+
+let result = "Pass";
+
+if (step.parameter !== "none") {
+const actual = Number(value);
+
+if (!Number.isFinite(actual)) {
+showMessage("Enter a valid number.");
+return;
+}
+
+if (actual < step.min || actual > step.max) {
+result = "Exception";
+}
+} else {
+const response = value.trim().toLowerCase();
+
+if (!["pass", "done", "fail"].includes(response)) {
+showMessage("Enter Pass, Done, or Fail.");
+return;
+}
+
+if (response === "fail") {
+result = "Exception";
+}
+}
+
+step.actual = value;
+step.result = result;
+
+if (result === "Exception") {
+batch.exceptions.push(
+"Step " + step.number + ": " +
+step.name + " - Actual: " + value
+);
+}
+
+if (batch.steps.every(s => s.result !== "Pending")) {
+batch.status = batch.exceptions.length
+? "Review Required"
+: "Completed";
+}
+
+saveBatch();
+render();
+showMessage("Step recorded: " + result);
+}
+
+document.getElementById("startButton")
+.addEventListener("click", () => {
+const id = document.getElementById(
+"batchId"
+).value.trim();
+
+if (!id) {
+showMessage("Enter a Batch ID.");
+return;
+}
+
+if (!recipe.length) {
+showMessage(
+"No saved recipe found. Add a step in " +
+"the Recipe Designer first."
+);
+return;
+}
+
+batch = {
+id,
+status: "In Progress",
+steps: recipe.map(step => ({
+...step,
+actual: null,
+result: "Pending"
+})),
+exceptions: []
+};
+
+saveBatch();
+render();
+showMessage("Batch started successfully.");
+});
+
+render();
+</script>
+</body>
+</html>
