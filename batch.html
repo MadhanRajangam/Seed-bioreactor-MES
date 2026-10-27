@@ -19,7 +19,7 @@ padding: 20px;
 border-radius: 10px;
 margin-bottom: 20px;
 }
-input, button {
+input, button, select {
 padding: 10px;
 margin: 6px;
 }
@@ -32,6 +32,7 @@ cursor: pointer;
 }
 button:disabled {
 background: #999;
+cursor: not-allowed;
 }
 table {
 width: 100%;
@@ -48,6 +49,11 @@ color: white;
 }
 .table-wrap { overflow-x: auto; }
 #message { font-weight: bold; }
+.note {
+color: #666;
+font-size: 13px;
+}
+a { margin-right: 15px; }
 </style>
 </head>
 <body>
@@ -56,18 +62,58 @@ color: white;
 <p>Seed Bioreactor MES - Training Simulation</p>
 
 <div class="panel">
-<h2>Batch Information</h2>
-<label>Batch ID
-<input id="batchId" value="SEED-2026-002">
-</label>
+<h2>Create New Batch</h2>
+
+<label for="batchId">Batch ID</label>
+<input id="batchId" value="SEED-2026-003">
+
 <p>Equipment: SUB-101</p>
 <p>Recipe: RCP-SEED-001</p>
-<button id="startButton">Start Batch</button>
-<p>Status: <strong id="batchStatus">Ready</strong></p>
+
+<button id="startButton" type="button">
+Start New Batch
+</button>
+
+<p class="note">
+Every batch must have a unique Batch ID.
+Previous batch records are retained.
+</p>
+</div>
+
+<div class="panel">
+<h2>Batch History</h2>
+
+<label for="batchSelector">
+Select Existing Batch
+</label>
+
+<select id="batchSelector"></select>
+
+<p>Selected Batch:
+<strong id="selectedBatch">-</strong>
+</p>
+
+<p>Status:
+<strong id="batchStatus">Ready</strong>
+</p>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Batch ID</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="historyTable"></tbody>
+</table>
+</div>
 </div>
 
 <div class="panel">
 <h2>Recipe Execution</h2>
+
 <div class="table-wrap">
 <table>
 <thead>
@@ -84,6 +130,7 @@ color: white;
 <tbody id="executionTable"></tbody>
 </table>
 </div>
+
 <p id="message" role="status"></p>
 </div>
 
@@ -92,34 +139,92 @@ color: white;
 <ul id="exceptionList"></ul>
 </div>
 
+<div class="panel">
+<h2>Selected Batch Documents</h2>
+<a href="exceptions.html">Exception Management</a>
+<a href="report.html">eBR Report</a>
+<p class="note">
+These pages will display the selected batch.
+Reviews remain linked to their Batch ID.
+</p>
+</div>
+
 <a href="index.html">Back to Dashboard</a>
 
 <script>
 const recipeKey = "mes_recipe_demo";
 const batchKey = "mes_batch_execution_demo";
+const historyKey = "mes_batch_history_demo";
 
 let recipe = [];
-let batch = null;
+let batches = [];
+let selectedId = null;
 
+function readJSON(key, fallback) {
 try {
-const savedRecipe = JSON.parse(
-localStorage.getItem(recipeKey)
+const value = JSON.parse(
+localStorage.getItem(key)
 );
+return value ?? fallback;
+} catch {
+return fallback;
+}
+}
+
+const savedRecipe = readJSON(recipeKey, []);
 recipe = Array.isArray(savedRecipe)
 ? savedRecipe
 : [];
-} catch {
-recipe = [];
+
+const savedHistory = readJSON(historyKey, []);
+batches = Array.isArray(savedHistory)
+? savedHistory.filter(item =>
+item &&
+typeof item.id === "string" &&
+Array.isArray(item.steps)
+)
+: [];
+
+// Import the previous single-batch record.
+const oldBatch = readJSON(batchKey, null);
+
+if (
+oldBatch &&
+typeof oldBatch.id === "string" &&
+Array.isArray(oldBatch.steps) &&
+!batches.some(item => item.id === oldBatch.id)
+) {
+batches.push(oldBatch);
 }
 
-try {
-batch = JSON.parse(localStorage.getItem(batchKey));
-} catch {
-batch = null;
+if (oldBatch && oldBatch.id) {
+selectedId = oldBatch.id;
+} else if (batches.length) {
+selectedId = batches[batches.length - 1].id;
 }
 
-function saveBatch() {
-localStorage.setItem(batchKey, JSON.stringify(batch));
+function currentBatch() {
+return batches.find(
+item => item.id === selectedId
+) || null;
+}
+
+function saveAll() {
+localStorage.setItem(
+historyKey,
+JSON.stringify(batches)
+);
+
+const current = currentBatch();
+
+if (current) {
+// Compatibility with the existing
+// QA Review and eBR Report modules.
+localStorage.setItem(
+batchKey,
+JSON.stringify(current)
+);
+}
 }
 
 function showMessage(text) {
@@ -127,27 +232,86 @@ document.getElementById("message")
 .textContent = text;
 }
 
+function selectBatch(id) {
+selectedId = id;
+saveAll();
+render();
+}
+
 function render() {
-const table = document.getElementById(
+const batch = currentBatch();
+
+const selector = document.getElementById(
+"batchSelector"
+);
+const historyTable = document.getElementById(
+"historyTable"
+);
+const executionTable = document.getElementById(
 "executionTable"
 );
-const list = document.getElementById(
+const exceptionList = document.getElementById(
 "exceptionList"
 );
 
-table.replaceChildren();
-list.replaceChildren();
+selector.replaceChildren();
+historyTable.replaceChildren();
+executionTable.replaceChildren();
+exceptionList.replaceChildren();
+
+document.getElementById("selectedBatch")
+.textContent = batch ? batch.id : "-";
 
 document.getElementById("batchStatus")
 .textContent = batch ? batch.status : "Ready";
 
-document.getElementById("startButton").disabled =
-!!batch;
+batches.forEach(item => {
+const option = document.createElement(
+"option"
+);
+option.value = item.id;
+option.textContent =
+item.id + " - " + item.status;
+selector.appendChild(option);
 
-document.getElementById("batchId").disabled =
-!!batch;
+const row = document.createElement("tr");
 
-if (!batch) return;
+const idCell = document.createElement("td");
+idCell.textContent = item.id;
+row.appendChild(idCell);
+
+const statusCell = document.createElement("td");
+statusCell.textContent = item.status;
+row.appendChild(statusCell);
+
+const actionCell = document.createElement("td");
+const button = document.createElement("button");
+button.type = "button";
+button.textContent = "Open";
+
+button.addEventListener("click", () => {
+selectBatch(item.id);
+});
+
+actionCell.appendChild(button);
+row.appendChild(actionCell);
+historyTable.appendChild(row);
+});
+
+selector.disabled = !batches.length;
+
+if (!batch) {
+const row = document.createElement("tr");
+const cell = document.createElement("td");
+cell.colSpan = 7;
+cell.textContent =
+"No batch selected. Start a new batch.";
+row.appendChild(cell);
+executionTable.appendChild(row);
+return;
+}
+
+selector.value = batch.id;
 
 batch.steps.forEach((step, index) => {
 const row = document.createElement("tr");
@@ -159,7 +323,7 @@ step.instruction,
 step.parameter
 ].forEach(value => {
 const cell = document.createElement("td");
-cell.textContent = value;
+cell.textContent = value ?? "-";
 row.appendChild(cell);
 });
 
@@ -175,13 +339,15 @@ input.step = "any";
 }
 
 input.placeholder = step.parameter === "none"
-? "Enter Pass or Done"
+? "Pass, Done or Fail"
 : "Enter value";
 
 input.value = step.actual ?? "";
-input.disabled = step.result !== "Pending"
-|| batch.status !== "In Progress";
 
+const locked = step.result !== "Pending" ||
+batch.status !== "In Progress";
+
+input.disabled = locked;
 actualCell.appendChild(input);
 row.appendChild(actualCell);
 
@@ -191,10 +357,10 @@ row.appendChild(resultCell);
 
 const actionCell = document.createElement("td");
 const button = document.createElement("button");
-button.textContent = "Record";
 
-button.disabled = step.result !== "Pending"
-|| batch.status !== "In Progress";
+button.type = "button";
+button.textContent = "Record";
+button.disabled = locked;
 
 button.addEventListener("click", () => {
 recordStep(index, input.value);
@@ -202,20 +368,28 @@ recordStep(index, input.value);
 
 actionCell.appendChild(button);
 row.appendChild(actionCell);
-table.appendChild(row);
+executionTable.appendChild(row);
 });
 
-batch.exceptions.forEach(item => {
+(batch.exceptions || []).forEach(item => {
 const li = document.createElement("li");
 li.textContent = item;
-list.appendChild(li);
+exceptionList.appendChild(li);
 });
 }
 
 function recordStep(index, value) {
+const batch = currentBatch();
+
+if (!batch || batch.status !== "In Progress") {
+return;
+}
+
 const step = batch.steps[index];
 
-if (step.result !== "Pending") return;
+if (!step || step.result !== "Pending") {
+return;
+}
 
 if (value.trim() === "") {
 showMessage("Enter an actual value first.");
@@ -226,19 +400,30 @@ let result = "Pass";
 
 if (step.parameter !== "none") {
 const actual = Number(value);
+const min = Number(step.min);
+const max = Number(step.max);
 
-if (!Number.isFinite(actual)) {
-showMessage("Enter a valid number.");
+if (
+!Number.isFinite(actual) ||
+!Number.isFinite(min) ||
+!Number.isFinite(max) ||
+min > max
+) {
+showMessage(
+"Invalid numeric value or recipe limits."
+);
 return;
 }
 
-if (actual < step.min || actual > step.max) {
+if (actual < min || actual > max) {
 result = "Exception";
 }
 } else {
 const response = value.trim().toLowerCase();
 
-if (!["pass", "done", "fail"].includes(response)) {
+if (
+!["pass", "done", "fail"].includes(response)
+) {
 showMessage("Enter Pass, Done, or Fail.");
 return;
 }
@@ -252,19 +437,27 @@ step.actual = value;
 step.result = result;
 
 if (result === "Exception") {
+if (!Array.isArray(batch.exceptions)) {
+batch.exceptions = [];
+}
+
 batch.exceptions.push(
 "Step " + step.number + ": " +
 step.name + " - Actual: " + value
 );
 }
 
-if (batch.steps.every(s => s.result !== "Pending")) {
+if (
+batch.steps.every(
+item => item.result !== "Pending"
+)
+) {
 batch.status = batch.exceptions.length
 ? "Review Required"
 : "Completed";
 }
 
-saveBatch();
+saveAll();
 render();
 showMessage("Step recorded: " + result);
 }
@@ -280,15 +473,23 @@ showMessage("Enter a Batch ID.");
 return;
 }
 
-if (!recipe.length) {
+if (batches.some(item => item.id === id)) {
 showMessage(
-"No saved recipe found. Add a step in " +
-"the Recipe Designer first."
+"This Batch ID already exists. " +
+"Enter a unique Batch ID."
 );
 return;
 }
 
-batch = {
+if (!recipe.length) {
+showMessage(
+"No saved recipe found. " +
+"Save a step in Recipe Designer first."
+);
+return;
+}
+
+const newBatch = {
 id,
 status: "In Progress",
 steps: recipe.map(step => ({
@@ -296,14 +497,28 @@ steps: recipe.map(step => ({
 actual: null,
 result: "Pending"
 })),
-exceptions: []
+exceptions: [],
+startedAt: new Date().toISOString()
 };
 
-saveBatch();
+batches.push(newBatch);
+selectedId = id;
+
+saveAll();
 render();
-showMessage("Batch started successfully.");
+
+showMessage(
+"New batch started successfully: " + id
+);
 });
 
+document.getElementById("batchSelector")
+.addEventListener("change", event => {
+selectBatch(event.target.value);
+});
+
+// Save migrated data.
+saveAll();
 render();
 </script>
 </body>
